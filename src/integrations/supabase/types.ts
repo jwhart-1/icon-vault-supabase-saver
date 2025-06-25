@@ -37,6 +37,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           dimensions: Json | null
+          downloads_count: number | null
           file_size: number | null
           id: string
           keywords: string[] | null
@@ -51,6 +52,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           dimensions?: Json | null
+          downloads_count?: number | null
           file_size?: number | null
           id?: string
           keywords?: string[] | null
@@ -65,6 +67,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           dimensions?: Json | null
+          downloads_count?: number | null
           file_size?: number | null
           id?: string
           keywords?: string[] | null

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +7,7 @@ import { Search, Download, Trash2, Grid3X3, List, Eye } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import type { Json } from '@/integrations/supabase/types';
 
 interface SavedIcon {
   id: string;
@@ -16,7 +16,7 @@ interface SavedIcon {
   iconify_id?: string;
   category?: string;
   keywords?: string[];
-  dimensions?: { width: number; height: number };
+  dimensions?: Json;
   file_size?: number;
   author?: string;
   downloads_count?: number;
