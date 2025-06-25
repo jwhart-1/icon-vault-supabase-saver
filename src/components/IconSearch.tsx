@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,7 +101,6 @@ const IconSearch = () => {
         .insert({
           name: name,
           svg_content: svgContent,
-          iconify_id: iconId,
           category: prefix,
           keywords: [searchQuery.trim()],
           dimensions: { width: 24, height: 24 },
