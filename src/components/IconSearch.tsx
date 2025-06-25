@@ -74,6 +74,10 @@ const IconSearch = () => {
           fetch(`https://api.iconify.design/${prefix}.json?icons=${names.slice(0, 50).join(',')}`)
             .then(res => res.json())
             .then(data => ({ prefix, data }))
+            .catch(error => {
+              console.error(`Failed to fetch icons for ${prefix}:`, error);
+              return { prefix, data: { icons: {} } };
+            })
         );
       }
       
@@ -87,6 +91,7 @@ const IconSearch = () => {
         }
       });
       
+      console.log('Icon data loaded:', Object.keys(iconMap).length, 'icons');
       return iconMap;
     },
     enabled: !!searchResults && searchResults.length > 0,
@@ -179,12 +184,18 @@ const IconSearch = () => {
 
   const renderIcon = (iconId: string) => {
     const iconData = iconDataMap?.[iconId];
-    if (!iconData) return null;
+    if (!iconData) {
+      return (
+        <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded animate-pulse">
+          <div className="w-4 h-4 bg-gray-300 rounded"></div>
+        </div>
+      );
+    }
 
     const svg = createSVGString(iconData, iconId);
     return (
       <div 
-        className="w-8 h-8 flex items-center justify-center"
+        className="w-8 h-8 flex items-center justify-center [&_svg]:w-full [&_svg]:h-full"
         dangerouslySetInnerHTML={{ __html: svg }}
       />
     );
@@ -278,13 +289,13 @@ const IconSearch = () => {
             ? "grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4"
             : "space-y-2"
           }>
-            {paginatedIcons.map((icon: IconifyIcon) => {
+            {paginatedIcons.map((icon: IconifyIcon, index: number) => {
               const iconId = `${icon.prefix}:${icon.name}`;
               const isSelected = selectedIcons.has(iconId);
               
               return (
                 <Card 
-                  key={iconId}
+                  key={`${iconId}-${index}`}
                   className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
                     isSelected ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:shadow-md'
                   } ${viewMode === 'list' ? 'p-4' : 'p-3'}`}
