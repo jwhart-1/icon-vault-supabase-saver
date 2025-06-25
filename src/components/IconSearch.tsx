@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,18 +9,10 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-interface IconifyIcon {
+interface ProcessedIcon {
+  id: string;
   prefix: string;
   name: string;
-  tags?: string[];
-  category?: string;
-}
-
-interface IconData {
-  body: string;
-  width?: number;
-  height?: number;
-  viewBox?: string;
 }
 
 const IconSearch = () => {
@@ -31,7 +23,7 @@ const IconSearch = () => {
   const iconsPerPage = 24;
 
   // Search for icons using Iconify API
-  const { data: searchResults, isLoading: isSearching, error } = useQuery({
+  const { data: searchResults, isLoading: isSearching } = useQuery({
     queryKey: ['iconify-search', searchQuery],
     queryFn: async () => {
       if (!searchQuery.trim()) return [];
@@ -44,75 +36,22 @@ const IconSearch = () => {
       }
       
       const data = await response.json();
-      console.log('Search results:', data);
-      return data.icons || [];
-    },
-    enabled: searchQuery.trim().length > 0,
-  });
-
-  // Get icon data for rendering
-  const { data: iconDataMap, isLoading: isLoadingIcons } = useQuery({
-    queryKey: ['iconify-data', searchResults],
-    queryFn: async () => {
-      if (!searchResults || searchResults.length === 0) return {};
+      console.log('Raw search results:', data);
       
-      console.log('Fetching icon data for', searchResults.length, 'icons');
-      const iconMap: Record<string, IconData> = {};
-      
-      // Process icons in smaller batches to avoid API limits
-      const batchSize = 20;
-      const batches = [];
-      
-      for (let i = 0; i < searchResults.length; i += batchSize) {
-        const batch = searchResults.slice(i, i + batchSize);
-        
-        // Group by prefix within each batch
-        const prefixGroups: Record<string, string[]> = {};
-        batch.forEach((icon: IconifyIcon) => {
-          if (!prefixGroups[icon.prefix]) {
-            prefixGroups[icon.prefix] = [];
-          }
-          prefixGroups[icon.prefix].push(icon.name);
-        });
-        
-        // Create requests for this batch
-        for (const [prefix, names] of Object.entries(prefixGroups)) {
-          batches.push(
-            fetch(`https://api.iconify.design/${prefix}.json?icons=${names.join(',')}`)
-              .then(async (res) => {
-                if (!res.ok) {
-                  console.error(`Failed to fetch ${prefix} icons:`, res.status, res.statusText);
-                  return { prefix, data: { icons: {} } };
-                }
-                const data = await res.json();
-                console.log(`Fetched ${prefix} icons:`, Object.keys(data.icons || {}).length);
-                return { prefix, data };
-              })
-              .catch(error => {
-                console.error(`Error fetching icons for ${prefix}:`, error);
-                return { prefix, data: { icons: {} } };
-              })
-          );
-        }
-      }
-      
-      console.log('Processing', batches.length, 'API requests');
-      const results = await Promise.all(batches);
-      
-      results.forEach(({ prefix, data }) => {
-        if (data.icons) {
-          Object.entries(data.icons).forEach(([name, iconData]: [string, any]) => {
-            const iconId = `${prefix}:${name}`;
-            iconMap[iconId] = iconData;
-            console.log(`Added icon: ${iconId}`);
-          });
-        }
+      // Transform string array to objects
+      const iconObjects: ProcessedIcon[] = (data.icons || []).map((iconId: string) => {
+        const [prefix, name] = iconId.split(':');
+        return {
+          id: iconId,
+          prefix: prefix || 'unknown',
+          name: name || 'unknown'
+        };
       });
       
-      console.log('Final icon data loaded:', Object.keys(iconMap).length, 'icons');
-      return iconMap;
+      console.log('Processed icon objects:', iconObjects.length);
+      return iconObjects;
     },
-    enabled: !!searchResults && searchResults.length > 0,
+    enabled: searchQuery.trim().length > 0,
   });
 
   const toggleIconSelection = (iconId: string) => {
@@ -125,26 +64,22 @@ const IconSearch = () => {
     setSelectedIcons(newSelected);
   };
 
-  const downloadIcon = async (iconId: string, format: 'svg' | 'png' = 'svg') => {
+  const downloadIcon = async (iconId: string) => {
     try {
-      const iconData = iconDataMap?.[iconId];
-      if (!iconData) {
-        toast.error('Icon data not available');
-        return;
-      }
-
-      if (format === 'svg') {
-        const svg = createSVGString(iconData, iconId);
-        const blob = new Blob([svg], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${iconId.replace(':', '-')}.svg`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
+      // Fetch SVG from CDN
+      const response = await fetch(`https://api.iconify.design/${iconId}.svg`);
+      if (!response.ok) throw new Error('Failed to fetch icon');
+      
+      const svgContent = await response.text();
+      const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${iconId.replace(':', '-')}.svg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       toast.success(`Downloaded ${iconId}`);
     } catch (error) {
@@ -155,25 +90,23 @@ const IconSearch = () => {
 
   const saveIconToRepository = async (iconId: string) => {
     try {
-      const iconData = iconDataMap?.[iconId];
-      if (!iconData) {
-        toast.error('Icon data not available');
-        return;
-      }
-
-      const svg = createSVGString(iconData, iconId);
+      // Fetch SVG from CDN
+      const response = await fetch(`https://api.iconify.design/${iconId}.svg`);
+      if (!response.ok) throw new Error('Failed to fetch icon');
+      
+      const svgContent = await response.text();
       const [prefix, name] = iconId.split(':');
       
       const { error } = await supabase
         .from('icons')
         .insert({
           name: name,
-          svg_content: svg,
+          svg_content: svgContent,
           iconify_id: iconId,
           category: prefix,
-          keywords: searchResults?.find((icon: IconifyIcon) => `${icon.prefix}:${icon.name}` === iconId)?.tags || [],
-          dimensions: { width: iconData.width || 24, height: iconData.height || 24 },
-          file_size: new Blob([svg]).size,
+          keywords: [searchQuery.trim()],
+          dimensions: { width: 24, height: 24 },
+          file_size: new Blob([svgContent]).size,
           author: 'Iconify',
           license: 'Various (see Iconify)',
         });
@@ -190,34 +123,45 @@ const IconSearch = () => {
     }
   };
 
-  const createSVGString = (iconData: IconData, iconId: string) => {
-    const width = iconData.width || 24;
-    const height = iconData.height || 24;
-    const viewBox = iconData.viewBox || `0 0 ${width} ${height}`;
-    
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
-      ${iconData.body}
-    </svg>`;
-  };
+  const IconifyIcon = ({ iconId, className = "" }: { iconId: string; className?: string }) => {
+    const [imgLoaded, setImgLoaded] = useState(false);
+    const [imgError, setImgError] = useState(false);
 
-  const renderIcon = (iconId: string) => {
-    const iconData = iconDataMap?.[iconId];
-    if (!iconData) {
-      console.log(`No icon data for: ${iconId}`);
+    if (!iconId || !iconId.includes(':')) {
       return (
-        <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded animate-pulse">
+        <div className="w-8 h-8 flex items-center justify-center bg-red-100 rounded">
+          <div className="w-4 h-4 bg-red-300 rounded"></div>
+        </div>
+      );
+    }
+
+    if (imgError) {
+      return (
+        <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded">
           <div className="w-4 h-4 bg-gray-300 rounded"></div>
         </div>
       );
     }
 
-    const svg = createSVGString(iconData, iconId);
-    console.log(`Rendering icon: ${iconId}`);
     return (
-      <div 
-        className="w-8 h-8 flex items-center justify-center [&_svg]:w-full [&_svg]:h-full"
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
+      <div className={`w-8 h-8 flex items-center justify-center ${className}`}>
+        {!imgLoaded && (
+          <div className="w-4 h-4 bg-gray-200 animate-pulse rounded"></div>
+        )}
+        <img
+          src={`https://api.iconify.design/${iconId}.svg`}
+          alt={iconId}
+          className={`w-full h-full ${imgLoaded ? 'block' : 'hidden'}`}
+          onLoad={() => {
+            setImgLoaded(true);
+            console.log(`Icon loaded: ${iconId}`);
+          }}
+          onError={() => {
+            setImgError(true);
+            console.error(`Failed to load icon: ${iconId}`);
+          }}
+        />
+      </div>
     );
   };
 
@@ -263,22 +207,15 @@ const IconSearch = () => {
       </div>
 
       {/* Loading State */}
-      {(isSearching || isLoadingIcons) && (
+      {isSearching && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
           <span className="ml-2 text-lg">Searching icons...</span>
         </div>
       )}
 
-      {/* Debug Info */}
-      {searchResults && iconDataMap && (
-        <div className="text-sm text-gray-500 text-center">
-          Debug: {searchResults.length} search results, {Object.keys(iconDataMap).length} icons loaded
-        </div>
-      )}
-
       {/* Results */}
-      {searchResults && searchResults.length > 0 && !isLoadingIcons && (
+      {searchResults && searchResults.length > 0 && (
         <>
           <div className="flex justify-between items-center">
             <p className="text-gray-600">
@@ -316,21 +253,20 @@ const IconSearch = () => {
             ? "grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4"
             : "space-y-2"
           }>
-            {paginatedIcons.map((icon: IconifyIcon, index: number) => {
-              const iconId = `${icon.prefix}:${icon.name}`;
-              const isSelected = selectedIcons.has(iconId);
+            {paginatedIcons.map((icon: ProcessedIcon) => {
+              const isSelected = selectedIcons.has(icon.id);
               
               return (
                 <Card 
-                  key={`${iconId}-${index}`}
+                  key={icon.id}
                   className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
                     isSelected ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:shadow-md'
                   } ${viewMode === 'list' ? 'p-4' : 'p-3'}`}
-                  onClick={() => toggleIconSelection(iconId)}
+                  onClick={() => toggleIconSelection(icon.id)}
                 >
                   <CardContent className={`p-0 ${viewMode === 'list' ? 'flex items-center gap-4' : 'text-center'}`}>
                     <div className={`${viewMode === 'list' ? 'flex-shrink-0' : 'mb-2'} flex justify-center`}>
-                      {renderIcon(iconId)}
+                      <IconifyIcon iconId={icon.id} />
                     </div>
                     <div className={viewMode === 'list' ? 'flex-1 min-w-0' : ''}>
                       <p className={`font-medium text-gray-900 ${viewMode === 'list' ? 'text-left' : 'text-xs'} truncate`}>
@@ -341,11 +277,6 @@ const IconSearch = () => {
                           <Badge variant="secondary" className="text-xs">
                             {icon.prefix}
                           </Badge>
-                          {icon.category && (
-                            <Badge variant="outline" className="text-xs">
-                              {icon.category}
-                            </Badge>
-                          )}
                         </div>
                       )}
                     </div>
@@ -356,7 +287,7 @@ const IconSearch = () => {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            downloadIcon(iconId);
+                            downloadIcon(icon.id);
                           }}
                         >
                           <Download className="w-4 h-4" />
@@ -366,7 +297,7 @@ const IconSearch = () => {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            saveIconToRepository(iconId);
+                            saveIconToRepository(icon.id);
                           }}
                         >
                           <Heart className="w-4 h-4" />
