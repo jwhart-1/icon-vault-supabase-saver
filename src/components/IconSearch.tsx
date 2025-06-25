@@ -1,0 +1,392 @@
+
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Search, Download, Heart, Grid3X3, List, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface IconifyIcon {
+  prefix: string;
+  name: string;
+  tags?: string[];
+  category?: string;
+}
+
+interface IconData {
+  body: string;
+  width?: number;
+  height?: number;
+  viewBox?: string;
+}
+
+const IconSearch = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIcons, setSelectedIcons] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [currentPage, setCurrentPage] = useState(1);
+  const iconsPerPage = 24;
+
+  // Search for icons using Iconify API
+  const { data: searchResults, isLoading: isSearching, error } = useQuery({
+    queryKey: ['iconify-search', searchQuery],
+    queryFn: async () => {
+      if (!searchQuery.trim()) return [];
+      
+      console.log('Searching for icons:', searchQuery);
+      const response = await fetch(`https://api.iconify.design/search?query=${encodeURIComponent(searchQuery)}&limit=200`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to search icons');
+      }
+      
+      const data = await response.json();
+      console.log('Search results:', data);
+      return data.icons || [];
+    },
+    enabled: searchQuery.trim().length > 0,
+  });
+
+  // Get icon data for rendering
+  const { data: iconDataMap, isLoading: isLoadingIcons } = useQuery({
+    queryKey: ['iconify-data', searchResults],
+    queryFn: async () => {
+      if (!searchResults || searchResults.length === 0) return {};
+      
+      const iconMap: Record<string, IconData> = {};
+      const batches = [];
+      
+      // Group icons by prefix for batch requests
+      const prefixGroups: Record<string, string[]> = {};
+      searchResults.forEach((icon: IconifyIcon) => {
+        if (!prefixGroups[icon.prefix]) {
+          prefixGroups[icon.prefix] = [];
+        }
+        prefixGroups[icon.prefix].push(icon.name);
+      });
+      
+      // Create batch requests
+      for (const [prefix, names] of Object.entries(prefixGroups)) {
+        batches.push(
+          fetch(`https://api.iconify.design/${prefix}.json?icons=${names.slice(0, 50).join(',')}`)
+            .then(res => res.json())
+            .then(data => ({ prefix, data }))
+        );
+      }
+      
+      const results = await Promise.all(batches);
+      
+      results.forEach(({ prefix, data }) => {
+        if (data.icons) {
+          Object.entries(data.icons).forEach(([name, iconData]: [string, any]) => {
+            iconMap[`${prefix}:${name}`] = iconData;
+          });
+        }
+      });
+      
+      return iconMap;
+    },
+    enabled: !!searchResults && searchResults.length > 0,
+  });
+
+  const toggleIconSelection = (iconId: string) => {
+    const newSelected = new Set(selectedIcons);
+    if (newSelected.has(iconId)) {
+      newSelected.delete(iconId);
+    } else {
+      newSelected.add(iconId);
+    }
+    setSelectedIcons(newSelected);
+  };
+
+  const downloadIcon = async (iconId: string, format: 'svg' | 'png' = 'svg') => {
+    try {
+      const iconData = iconDataMap?.[iconId];
+      if (!iconData) {
+        toast.error('Icon data not available');
+        return;
+      }
+
+      if (format === 'svg') {
+        const svg = createSVGString(iconData, iconId);
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${iconId.replace(':', '-')}.svg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      toast.success(`Downloaded ${iconId}`);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download icon');
+    }
+  };
+
+  const saveIconToRepository = async (iconId: string) => {
+    try {
+      const iconData = iconDataMap?.[iconId];
+      if (!iconData) {
+        toast.error('Icon data not available');
+        return;
+      }
+
+      const svg = createSVGString(iconData, iconId);
+      const [prefix, name] = iconId.split(':');
+      
+      const { error } = await supabase
+        .from('icons')
+        .insert({
+          name: name,
+          svg_content: svg,
+          iconify_id: iconId,
+          category: prefix,
+          keywords: searchResults?.find((icon: IconifyIcon) => `${icon.prefix}:${icon.name}` === iconId)?.tags || [],
+          dimensions: { width: iconData.width || 24, height: iconData.height || 24 },
+          file_size: new Blob([svg]).size,
+          author: 'Iconify',
+          license: 'Various (see Iconify)',
+        });
+
+      if (error) {
+        console.error('Save error:', error);
+        toast.error('Failed to save icon to repository');
+      } else {
+        toast.success('Icon saved to your repository!');
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      toast.error('Failed to save icon');
+    }
+  };
+
+  const createSVGString = (iconData: IconData, iconId: string) => {
+    const width = iconData.width || 24;
+    const height = iconData.height || 24;
+    const viewBox = iconData.viewBox || `0 0 ${width} ${height}`;
+    
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
+      ${iconData.body}
+    </svg>`;
+  };
+
+  const renderIcon = (iconId: string) => {
+    const iconData = iconDataMap?.[iconId];
+    if (!iconData) return null;
+
+    const svg = createSVGString(iconData, iconId);
+    return (
+      <div 
+        className="w-8 h-8 flex items-center justify-center"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    );
+  };
+
+  const paginatedIcons = searchResults?.slice(
+    (currentPage - 1) * iconsPerPage,
+    currentPage * iconsPerPage
+  ) || [];
+
+  const totalPages = Math.ceil((searchResults?.length || 0) / iconsPerPage);
+
+  return (
+    <div className="space-y-6">
+      {/* Search Bar */}
+      <div className="flex gap-4 items-center max-w-2xl mx-auto">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Search for icons (e.g., home, user, settings)..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="pl-10 h-12 text-lg"
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('grid')}
+          >
+            <Grid3X3 className="w-4 h-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+          >
+            <List className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Loading State */}
+      {(isSearching || isLoadingIcons) && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          <span className="ml-2 text-lg">Searching icons...</span>
+        </div>
+      )}
+
+      {/* Results */}
+      {searchResults && searchResults.length > 0 && !isLoadingIcons && (
+        <>
+          <div className="flex justify-between items-center">
+            <p className="text-gray-600">
+              Found {searchResults.length} icons • Page {currentPage} of {totalPages}
+            </p>
+            {selectedIcons.size > 0 && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    selectedIcons.forEach(iconId => downloadIcon(iconId));
+                    setSelectedIcons(new Set());
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Selected ({selectedIcons.size})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    selectedIcons.forEach(iconId => saveIconToRepository(iconId));
+                    setSelectedIcons(new Set());
+                  }}
+                >
+                  <Heart className="w-4 h-4 mr-2" />
+                  Save Selected ({selectedIcons.size})
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className={viewMode === 'grid' 
+            ? "grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4"
+            : "space-y-2"
+          }>
+            {paginatedIcons.map((icon: IconifyIcon) => {
+              const iconId = `${icon.prefix}:${icon.name}`;
+              const isSelected = selectedIcons.has(iconId);
+              
+              return (
+                <Card 
+                  key={iconId}
+                  className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                    isSelected ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:shadow-md'
+                  } ${viewMode === 'list' ? 'p-4' : 'p-3'}`}
+                  onClick={() => toggleIconSelection(iconId)}
+                >
+                  <CardContent className={`p-0 ${viewMode === 'list' ? 'flex items-center gap-4' : 'text-center'}`}>
+                    <div className={`${viewMode === 'list' ? 'flex-shrink-0' : 'mb-2'} flex justify-center`}>
+                      {renderIcon(iconId)}
+                    </div>
+                    <div className={viewMode === 'list' ? 'flex-1 min-w-0' : ''}>
+                      <p className={`font-medium text-gray-900 ${viewMode === 'list' ? 'text-left' : 'text-xs'} truncate`}>
+                        {icon.name}
+                      </p>
+                      {viewMode === 'list' && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {icon.prefix}
+                          </Badge>
+                          {icon.category && (
+                            <Badge variant="outline" className="text-xs">
+                              {icon.category}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {viewMode === 'list' && (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadIcon(iconId);
+                          }}
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            saveIconToRepository(iconId);
+                          }}
+                        >
+                          <Heart className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-4 mt-8">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="w-4 h-4 mr-2" />
+                Previous
+              </Button>
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* No Results */}
+      {searchQuery && searchResults && searchResults.length === 0 && !isSearching && (
+        <div className="text-center py-12">
+          <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No icons found</h3>
+          <p className="text-gray-600">Try searching with different keywords</p>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!searchQuery && (
+        <div className="text-center py-12">
+          <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Start searching for icons</h3>
+          <p className="text-gray-600">Enter keywords like "home", "user", "settings" to find perfect icons</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default IconSearch;
