@@ -56,42 +56,60 @@ const IconSearch = () => {
     queryFn: async () => {
       if (!searchResults || searchResults.length === 0) return {};
       
+      console.log('Fetching icon data for', searchResults.length, 'icons');
       const iconMap: Record<string, IconData> = {};
+      
+      // Process icons in smaller batches to avoid API limits
+      const batchSize = 20;
       const batches = [];
       
-      // Group icons by prefix for batch requests
-      const prefixGroups: Record<string, string[]> = {};
-      searchResults.forEach((icon: IconifyIcon) => {
-        if (!prefixGroups[icon.prefix]) {
-          prefixGroups[icon.prefix] = [];
+      for (let i = 0; i < searchResults.length; i += batchSize) {
+        const batch = searchResults.slice(i, i + batchSize);
+        
+        // Group by prefix within each batch
+        const prefixGroups: Record<string, string[]> = {};
+        batch.forEach((icon: IconifyIcon) => {
+          if (!prefixGroups[icon.prefix]) {
+            prefixGroups[icon.prefix] = [];
+          }
+          prefixGroups[icon.prefix].push(icon.name);
+        });
+        
+        // Create requests for this batch
+        for (const [prefix, names] of Object.entries(prefixGroups)) {
+          batches.push(
+            fetch(`https://api.iconify.design/${prefix}.json?icons=${names.join(',')}`)
+              .then(async (res) => {
+                if (!res.ok) {
+                  console.error(`Failed to fetch ${prefix} icons:`, res.status, res.statusText);
+                  return { prefix, data: { icons: {} } };
+                }
+                const data = await res.json();
+                console.log(`Fetched ${prefix} icons:`, Object.keys(data.icons || {}).length);
+                return { prefix, data };
+              })
+              .catch(error => {
+                console.error(`Error fetching icons for ${prefix}:`, error);
+                return { prefix, data: { icons: {} } };
+              })
+          );
         }
-        prefixGroups[icon.prefix].push(icon.name);
-      });
-      
-      // Create batch requests
-      for (const [prefix, names] of Object.entries(prefixGroups)) {
-        batches.push(
-          fetch(`https://api.iconify.design/${prefix}.json?icons=${names.slice(0, 50).join(',')}`)
-            .then(res => res.json())
-            .then(data => ({ prefix, data }))
-            .catch(error => {
-              console.error(`Failed to fetch icons for ${prefix}:`, error);
-              return { prefix, data: { icons: {} } };
-            })
-        );
       }
       
+      console.log('Processing', batches.length, 'API requests');
       const results = await Promise.all(batches);
       
       results.forEach(({ prefix, data }) => {
         if (data.icons) {
           Object.entries(data.icons).forEach(([name, iconData]: [string, any]) => {
-            iconMap[`${prefix}:${name}`] = iconData;
+            const iconId = `${prefix}:${name}`;
+            iconMap[iconId] = iconData;
+            console.log(`Added icon: ${iconId}`);
           });
         }
       });
       
-      console.log('Icon data loaded:', Object.keys(iconMap).length, 'icons');
+      console.log('Final icon data loaded:', Object.keys(iconMap).length, 'icons');
       return iconMap;
     },
     enabled: !!searchResults && searchResults.length > 0,
@@ -185,6 +203,7 @@ const IconSearch = () => {
   const renderIcon = (iconId: string) => {
     const iconData = iconDataMap?.[iconId];
     if (!iconData) {
+      console.log(`No icon data for: ${iconId}`);
       return (
         <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded animate-pulse">
           <div className="w-4 h-4 bg-gray-300 rounded"></div>
@@ -193,6 +212,7 @@ const IconSearch = () => {
     }
 
     const svg = createSVGString(iconData, iconId);
+    console.log(`Rendering icon: ${iconId}`);
     return (
       <div 
         className="w-8 h-8 flex items-center justify-center [&_svg]:w-full [&_svg]:h-full"
@@ -247,6 +267,13 @@ const IconSearch = () => {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
           <span className="ml-2 text-lg">Searching icons...</span>
+        </div>
+      )}
+
+      {/* Debug Info */}
+      {searchResults && iconDataMap && (
+        <div className="text-sm text-gray-500 text-center">
+          Debug: {searchResults.length} search results, {Object.keys(iconDataMap).length} icons loaded
         </div>
       )}
 
