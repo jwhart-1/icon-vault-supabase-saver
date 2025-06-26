@@ -5,12 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Download, Heart, Grid3X3, List, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Download, Heart, Grid3X3, List, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import IconSearch from '@/components/IconSearch';
 import SavedIcons from '@/components/SavedIcons';
+import PasteIcon from '@/components/PasteIcon';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('search');
@@ -28,7 +29,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
+          <TabsList className="grid w-full max-w-lg mx-auto grid-cols-3 mb-8">
             <TabsTrigger value="search" className="flex items-center gap-2">
               <Search className="w-4 h-4" />
               Search Icons
@@ -36,6 +37,10 @@ const Index = () => {
             <TabsTrigger value="saved" className="flex items-center gap-2">
               <Heart className="w-4 h-4" />
               My Icons
+            </TabsTrigger>
+            <TabsTrigger value="add" className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Add Icon
             </TabsTrigger>
           </TabsList>
 
@@ -45,6 +50,10 @@ const Index = () => {
 
           <TabsContent value="saved">
             <SavedIcons />
+          </TabsContent>
+
+          <TabsContent value="add">
+            <PasteIcon />
           </TabsContent>
         </Tabs>
       </div>
