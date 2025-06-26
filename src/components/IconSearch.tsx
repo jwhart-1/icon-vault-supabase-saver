@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Download, Heart, Grid3X3, List, ChevronLeft, ChevronRight, Loader2, Save } from 'lucide-react';
+import { Search, Download, Heart, Grid3X3, List, ChevronLeft, ChevronRight, Loader2, Save, Copy } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -176,6 +176,22 @@ const IconSearch = () => {
       toast.error('Failed to save icons');
     } finally {
       setIsSavingAll(false);
+    }
+  };
+
+  const copyIcon = async (iconId: string) => {
+    try {
+      // Fetch SVG from CDN at 48x48
+      const response = await fetch(`https://api.iconify.design/${iconId}.svg?width=48&height=48`);
+      if (!response.ok) throw new Error('Failed to fetch icon');
+      
+      const svgContent = await response.text();
+      await navigator.clipboard.writeText(svgContent);
+      
+      toast.success(`Copied ${iconId} SVG to clipboard`);
+    } catch (error) {
+      console.error('Copy error:', error);
+      toast.error('Failed to copy icon');
     }
   };
 
@@ -355,6 +371,16 @@ const IconSearch = () => {
                     </div>
                     {viewMode === 'list' && (
                       <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyIcon(icon.id);
+                          }}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
