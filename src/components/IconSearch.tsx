@@ -67,7 +67,7 @@ const IconSearch = () => {
   const downloadIcon = async (iconId: string) => {
     try {
       // Fetch SVG from CDN
-      const response = await fetch(`https://api.iconify.design/${iconId}.svg`);
+      const response = await fetch(`https://api.iconify.design/${iconId}.svg?width=48&height=48`);
       if (!response.ok) throw new Error('Failed to fetch icon');
       
       const svgContent = await response.text();
@@ -90,8 +90,8 @@ const IconSearch = () => {
 
   const saveIconToRepository = async (iconId: string) => {
     try {
-      // Fetch SVG from CDN
-      const response = await fetch(`https://api.iconify.design/${iconId}.svg`);
+      // Fetch SVG from CDN at 48x48
+      const response = await fetch(`https://api.iconify.design/${iconId}.svg?width=48&height=48`);
       if (!response.ok) throw new Error('Failed to fetch icon');
       
       const svgContent = await response.text();
@@ -104,7 +104,7 @@ const IconSearch = () => {
           svg_content: svgContent,
           category: prefix,
           keywords: [searchQuery.trim()],
-          dimensions: { width: 24, height: 24 },
+          dimensions: { width: 48, height: 48 },
           file_size: new Blob([svgContent]).size,
           author: 'Iconify',
           license: 'Various (see Iconify)',
@@ -134,8 +134,8 @@ const IconSearch = () => {
 
       for (const icon of paginatedIcons) {
         try {
-          // Fetch SVG from CDN
-          const response = await fetch(`https://api.iconify.design/${icon.id}.svg`);
+          // Fetch SVG from CDN at 48x48
+          const response = await fetch(`https://api.iconify.design/${icon.id}.svg?width=48&height=48`);
           if (!response.ok) throw new Error('Failed to fetch icon');
           
           const svgContent = await response.text();
@@ -147,7 +147,7 @@ const IconSearch = () => {
               svg_content: svgContent,
               category: icon.prefix,
               keywords: [searchQuery.trim()],
-              dimensions: { width: 24, height: 24 },
+              dimensions: { width: 48, height: 48 },
               file_size: new Blob([svgContent]).size,
               author: 'Iconify',
               license: 'Various (see Iconify)',
@@ -185,27 +185,27 @@ const IconSearch = () => {
 
     if (!iconId || !iconId.includes(':')) {
       return (
-        <div className="w-8 h-8 flex items-center justify-center bg-red-100 rounded">
-          <div className="w-4 h-4 bg-red-300 rounded"></div>
+        <div className="w-12 h-12 flex items-center justify-center bg-red-100 rounded">
+          <div className="w-6 h-6 bg-red-300 rounded"></div>
         </div>
       );
     }
 
     if (imgError) {
       return (
-        <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded">
-          <div className="w-4 h-4 bg-gray-300 rounded"></div>
+        <div className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded">
+          <div className="w-6 h-6 bg-gray-300 rounded"></div>
         </div>
       );
     }
 
     return (
-      <div className={`w-8 h-8 flex items-center justify-center ${className}`}>
+      <div className={`w-12 h-12 flex items-center justify-center ${className}`}>
         {!imgLoaded && (
-          <div className="w-4 h-4 bg-gray-200 animate-pulse rounded"></div>
+          <div className="w-6 h-6 bg-gray-200 animate-pulse rounded"></div>
         )}
         <img
-          src={`https://api.iconify.design/${iconId}.svg`}
+          src={`https://api.iconify.design/${iconId}.svg?width=48&height=48`}
           alt={iconId}
           className={`w-full h-full ${imgLoaded ? 'block' : 'hidden'}`}
           onLoad={() => {
