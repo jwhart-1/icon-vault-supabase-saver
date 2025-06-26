@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Download, Heart, Grid3X3, List, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, Download, Heart, Grid3X3, List, ChevronLeft, ChevronRight, Loader2, Save } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -19,6 +19,7 @@ const IconSearch = () => {
   const [selectedIcons, setSelectedIcons] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
+  const [isSavingAll, setIsSavingAll] = useState(false);
   const iconsPerPage = 50;
 
   // Search for icons using Iconify API
@@ -121,6 +122,63 @@ const IconSearch = () => {
     }
   };
 
+  const saveAllPageIcons = async () => {
+    if (!paginatedIcons.length) return;
+    
+    setIsSavingAll(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      toast.info(`Saving ${paginatedIcons.length} icons to repository...`);
+
+      for (const icon of paginatedIcons) {
+        try {
+          // Fetch SVG from CDN
+          const response = await fetch(`https://api.iconify.design/${icon.id}.svg`);
+          if (!response.ok) throw new Error('Failed to fetch icon');
+          
+          const svgContent = await response.text();
+          
+          const { error } = await supabase
+            .from('icons')
+            .insert({
+              name: icon.name,
+              svg_content: svgContent,
+              category: icon.prefix,
+              keywords: [searchQuery.trim()],
+              dimensions: { width: 24, height: 24 },
+              file_size: new Blob([svgContent]).size,
+              author: 'Iconify',
+              license: 'Various (see Iconify)',
+            });
+
+          if (error) {
+            console.error('Save error for', icon.id, ':', error);
+            errorCount++;
+          } else {
+            successCount++;
+          }
+        } catch (error) {
+          console.error('Save error for', icon.id, ':', error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully saved ${successCount} icons to repository!`);
+      }
+      if (errorCount > 0) {
+        toast.error(`Failed to save ${errorCount} icons`);
+      }
+    } catch (error) {
+      console.error('Batch save error:', error);
+      toast.error('Failed to save icons');
+    } finally {
+      setIsSavingAll(false);
+    }
+  };
+
   const IconifyIcon = ({ iconId, className = "" }: { iconId: string; className?: string }) => {
     const [imgLoaded, setImgLoaded] = useState(false);
     const [imgError, setImgError] = useState(false);
@@ -219,32 +277,49 @@ const IconSearch = () => {
             <p className="text-gray-600">
               Found {searchResults.length} icons • Page {currentPage} of {totalPages}
             </p>
-            {selectedIcons.size > 0 && (
-              <div className="flex gap-2">
+            <div className="flex gap-2">
+              {paginatedIcons.length > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    selectedIcons.forEach(iconId => downloadIcon(iconId));
-                    setSelectedIcons(new Set());
-                  }}
+                  onClick={saveAllPageIcons}
+                  disabled={isSavingAll}
                 >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Selected ({selectedIcons.size})
+                  {isSavingAll ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  Save All on Page ({paginatedIcons.length})
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    selectedIcons.forEach(iconId => saveIconToRepository(iconId));
-                    setSelectedIcons(new Set());
-                  }}
-                >
-                  <Heart className="w-4 h-4 mr-2" />
-                  Save Selected ({selectedIcons.size})
-                </Button>
-              </div>
-            )}
+              )}
+              {selectedIcons.size > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      selectedIcons.forEach(iconId => downloadIcon(iconId));
+                      setSelectedIcons(new Set());
+                    }}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Selected ({selectedIcons.size})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      selectedIcons.forEach(iconId => saveIconToRepository(iconId));
+                      setSelectedIcons(new Set());
+                    }}
+                  >
+                    <Heart className="w-4 h-4 mr-2" />
+                    Save Selected ({selectedIcons.size})
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           <div className={viewMode === 'grid' 
