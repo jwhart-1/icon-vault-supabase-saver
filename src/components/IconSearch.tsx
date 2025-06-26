@@ -19,7 +19,7 @@ const IconSearch = () => {
   const [selectedIcons, setSelectedIcons] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
-  const iconsPerPage = 24;
+  const iconsPerPage = 50;
 
   // Search for icons using Iconify API
   const { data: searchResults, isLoading: isSearching } = useQuery({
