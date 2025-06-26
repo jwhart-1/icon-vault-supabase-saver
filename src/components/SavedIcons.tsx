@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Download, Trash2, Grid3X3, List, Eye } from 'lucide-react';
+import { Search, Download, Trash2, Grid3X3, List, Eye, Copy } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -92,6 +92,16 @@ const SavedIcons = () => {
       toast.error('Failed to delete icon');
     },
   });
+
+  const copyIcon = async (icon: SavedIcon) => {
+    try {
+      await navigator.clipboard.writeText(icon.svg_content);
+      toast.success(`Copied ${icon.name} to clipboard`);
+    } catch (error) {
+      console.error('Copy error:', error);
+      toast.error('Failed to copy icon');
+    }
+  };
 
   const downloadIcon = async (icon: SavedIcon) => {
     try {
@@ -221,6 +231,14 @@ const SavedIcons = () => {
                 </div>
 
                 <div className={`${viewMode === 'grid' ? 'opacity-0 group-hover:opacity-100 transition-opacity mt-2' : ''} flex gap-1 ${viewMode === 'list' ? 'flex-row' : 'justify-center'}`}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyIcon(icon)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
