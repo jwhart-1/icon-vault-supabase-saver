@@ -348,12 +348,49 @@ const IconSearch = () => {
               return (
                 <Card 
                   key={icon.id}
-                  className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                  className={`group cursor-pointer transition-all duration-200 hover:shadow-lg relative ${
                     isSelected ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:shadow-md'
                   } ${viewMode === 'list' ? 'p-4' : 'p-3'}`}
                   onClick={() => toggleIconSelection(icon.id)}
                 >
                   <CardContent className={`p-0 ${viewMode === 'list' ? 'flex items-center gap-4' : 'text-center'}`}>
+                    {viewMode === 'grid' && (
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyIcon(icon.id);
+                          }}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadIcon(icon.id);
+                          }}
+                        >
+                          <Download className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            saveIconToRepository(icon.id);
+                          }}
+                        >
+                          <Heart className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
                     <div className={`${viewMode === 'list' ? 'flex-shrink-0' : 'mb-2'} flex justify-center`}>
                       <IconifyIcon iconId={icon.id} />
                     </div>
