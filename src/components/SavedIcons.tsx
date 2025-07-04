@@ -3,7 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Download, Trash2, Grid3X3, List, Eye, Copy } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Search, Download, Trash2, Grid3X3, List, Eye, Copy, Pencil } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -19,6 +22,8 @@ interface SavedIcon {
   dimensions?: Json;
   file_size?: number;
   author?: string;
+  description?: string;
+  license?: string;
   downloads_count?: number;
   created_at: string;
 }
@@ -29,6 +34,16 @@ const SavedIcons = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedIcons, setSelectedIcons] = useState<Set<string>>(new Set());
   const [lastClickedIcon, setLastClickedIcon] = useState<string | null>(null);
+  const [editingIcon, setEditingIcon] = useState<SavedIcon | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    category: '',
+    customCategory: '',
+    keywords: '',
+    description: '',
+    author: '',
+    license: ''
+  });
   const queryClient = useQueryClient();
 
   // Fetch saved icons
@@ -116,6 +131,27 @@ const SavedIcons = () => {
     },
   });
 
+  // Update icon mutation
+  const updateIconMutation = useMutation({
+    mutationFn: async (iconData: { id: string; updates: any }) => {
+      const { error } = await supabase
+        .from('icons')
+        .update(iconData.updates)
+        .eq('id', iconData.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['saved-icons'] });
+      setEditingIcon(null);
+      toast.success('Icon updated successfully');
+    },
+    onError: (error) => {
+      console.error('Update error:', error);
+      toast.error('Failed to update icon');
+    },
+  });
+
   const handleIconClick = (iconId: string, event: React.MouseEvent) => {
     event.preventDefault();
     
@@ -155,6 +191,50 @@ const SavedIcons = () => {
 
   const clearSelection = () => {
     setSelectedIcons(new Set());
+  };
+
+  const openEditDialog = (icon: SavedIcon) => {
+    setEditingIcon(icon);
+    setEditFormData({
+      name: icon.name,
+      category: icon.category === 'custom' ? 'custom' : (icon.category || ''),
+      customCategory: icon.category === 'custom' ? icon.category : '',
+      keywords: icon.keywords ? icon.keywords.join(', ') : '',
+      description: icon.description || '',
+      author: icon.author || '',
+      license: icon.license || ''
+    });
+  };
+
+  const handleEditSubmit = () => {
+    if (!editingIcon || !editFormData.name.trim()) {
+      toast.error('Icon name is required');
+      return;
+    }
+
+    const finalCategory = editFormData.category === 'custom' 
+      ? editFormData.customCategory.trim() 
+      : editFormData.category.trim();
+
+    const keywordsArray = editFormData.keywords
+      .split(',')
+      .map(k => k.trim())
+      .filter(Boolean);
+
+    const updates = {
+      name: editFormData.name.trim(),
+      category: finalCategory || null,
+      keywords: keywordsArray.length > 0 ? keywordsArray : null,
+      description: editFormData.description.trim() || null,
+      author: editFormData.author.trim() || null,
+      license: editFormData.license.trim() || null,
+      updated_at: new Date().toISOString()
+    };
+
+    updateIconMutation.mutate({
+      id: editingIcon.id,
+      updates
+    });
   };
 
   const copyIcon = async (icon: SavedIcon) => {
@@ -349,6 +429,17 @@ const SavedIcons = () => {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
+                      openEditDialog(icon);
+                    }}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       deleteIconMutation.mutate(icon.id);
                     }}
                     className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
@@ -374,6 +465,147 @@ const SavedIcons = () => {
           )}
         </div>
       )}
+      
+      {/* Edit Icon Dialog */}
+      <Dialog open={!!editingIcon} onOpenChange={() => setEditingIcon(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Icon</DialogTitle>
+          </DialogHeader>
+          
+          {editingIcon && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Icon Preview */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-center p-8 bg-gray-50 rounded-lg">
+                  <div
+                    className="w-16 h-16 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:max-w-16 [&>svg]:max-h-16"
+                    dangerouslySetInnerHTML={{ __html: editingIcon.svg_content }}
+                  />
+                </div>
+                <div className="text-center text-sm text-gray-600">
+                  <p>Current icon preview</p>
+                  <p className="text-xs text-gray-400 mt-1">SVG content cannot be edited</p>
+                </div>
+              </div>
+
+              {/* Edit Form */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Icon Name *
+                  </label>
+                  <Input
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Enter icon name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category
+                  </label>
+                  <Select 
+                    value={editFormData.category} 
+                    onValueChange={(value) => setEditFormData(prev => ({ ...prev, category: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No category</SelectItem>
+                      {categories?.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {editFormData.category === 'custom' && (
+                    <Input
+                      placeholder="Enter custom category"
+                      value={editFormData.customCategory}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, customCategory: e.target.value }))}
+                      className="mt-2"
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Keywords (comma-separated)
+                  </label>
+                  <Input
+                    value={editFormData.keywords}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, keywords: e.target.value }))}
+                    placeholder="e.g., ui, button, interface"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <Textarea
+                    value={editFormData.description}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Optional description for this icon"
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Author
+                  </label>
+                  <Input
+                    value={editFormData.author}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, author: e.target.value }))}
+                    placeholder="Icon author"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    License
+                  </label>
+                  <Input
+                    value={editFormData.license}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, license: e.target.value }))}
+                    placeholder="e.g., MIT, CC0, Apache 2.0"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    onClick={handleEditSubmit}
+                    disabled={!editFormData.name.trim() || updateIconMutation.isPending}
+                    className="flex-1"
+                  >
+                    {updateIconMutation.isPending ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditingIcon(null)}
+                    disabled={updateIconMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
