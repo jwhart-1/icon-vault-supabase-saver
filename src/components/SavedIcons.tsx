@@ -194,6 +194,7 @@ const SavedIcons = () => {
   };
 
   const openEditDialog = (icon: SavedIcon) => {
+    console.log('Opening edit dialog for icon:', icon.name);
     setEditingIcon(icon);
     setEditFormData({
       name: icon.name,
@@ -203,6 +204,11 @@ const SavedIcons = () => {
       description: icon.description || '',
       author: icon.author || '',
       license: icon.license || ''
+    });
+    console.log('Edit form data set:', {
+      name: icon.name,
+      category: icon.category,
+      editingIcon: !!icon
     });
   };
 
@@ -472,6 +478,10 @@ const SavedIcons = () => {
           <DialogHeader>
             <DialogTitle>Edit Icon</DialogTitle>
           </DialogHeader>
+          
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded">
+            <p>Debug: Dialog is open, editingIcon: {editingIcon ? editingIcon.name : 'null'}</p>
+          </div>
           
           {editingIcon && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
