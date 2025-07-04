@@ -195,7 +195,7 @@ const SavedIcons = () => {
   const renderIcon = (icon: SavedIcon) => {
     return (
       <div 
-        className="w-8 h-8 flex items-center justify-center"
+        className="w-12 h-12 flex items-center justify-center"
         dangerouslySetInnerHTML={{ __html: icon.svg_content }}
       />
     );
