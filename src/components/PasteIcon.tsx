@@ -27,15 +27,18 @@ const PasteIcon = () => {
       return;
     }
 
+    // Remove XML declaration if present for better HTML compatibility
+    const cleanedSvg = trimmedSvg.replace(/<\?xml[^>]*\?>\s*/, '');
+
     // Basic SVG validation
-    const isSvg = trimmedSvg.toLowerCase().includes('<svg') && trimmedSvg.toLowerCase().includes('</svg>');
+    const isSvg = cleanedSvg.toLowerCase().includes('<svg') && cleanedSvg.toLowerCase().includes('</svg>');
     if (isSvg) {
       setIsValid(true);
-      setPreviewSvg(trimmedSvg);
+      setPreviewSvg(cleanedSvg);
       
       // Try to extract name from SVG if name field is empty
       if (!iconName) {
-        const match = trimmedSvg.match(/id="([^"]+)"/);
+        const match = cleanedSvg.match(/id="([^"]+)"/);
         if (match) {
           setIconName(match[1]);
         }
@@ -242,9 +245,9 @@ const PasteIcon = () => {
           <CardContent>
             {previewSvg ? (
               <div className="space-y-4">
-                <div className="flex items-center justify-center p-8 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-center p-8 bg-gray-900 rounded-lg">
                   <div
-                    className="w-16 h-16 flex items-center justify-center"
+                    className="w-16 h-16 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:max-w-16 [&>svg]:max-h-16"
                     dangerouslySetInnerHTML={{ __html: previewSvg }}
                   />
                 </div>
