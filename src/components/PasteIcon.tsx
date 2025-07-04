@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Save, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -14,10 +15,27 @@ const PasteIcon = () => {
   const [svgContent, setSvgContent] = useState('');
   const [iconName, setIconName] = useState('');
   const [category, setCategory] = useState('');
+  const [customCategory, setCustomCategory] = useState('');
   const [keywords, setKeywords] = useState('');
   const [previewSvg, setPreviewSvg] = useState('');
   const [isValid, setIsValid] = useState(false);
   const queryClient = useQueryClient();
+
+  // Get unique categories from existing icons
+  const { data: categories } = useQuery({
+    queryKey: ['icon-categories'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('icons')
+        .select('category')
+        .not('category', 'is', null);
+      
+      if (error) throw error;
+      
+      const uniqueCategories = [...new Set(data.map(item => item.category))].filter(Boolean);
+      return uniqueCategories as string[];
+    },
+  });
 
   const validateSvg = (svg: string) => {
     const trimmedSvg = svg.trim();
@@ -92,12 +110,14 @@ const PasteIcon = () => {
         }
       }
 
+      const finalCategory = category === 'custom' ? customCategory.trim() : category.trim();
+      
       const { error } = await supabase
         .from('icons')
         .insert({
           name: iconName.trim(),
           svg_content: svgContent.trim(),
-          category: category.trim() || 'custom',
+          category: finalCategory || 'custom',
           keywords: keywordsArray.length > 0 ? keywordsArray : null,
           dimensions: dimensions,
           file_size: fileSize,
@@ -114,6 +134,7 @@ const PasteIcon = () => {
       setSvgContent('');
       setIconName('');
       setCategory('');
+      setCustomCategory('');
       setKeywords('');
       setPreviewSvg('');
       setIsValid(false);
@@ -167,11 +188,27 @@ const PasteIcon = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Category
               </label>
-              <Input
-                placeholder="e.g., custom, logos, ui"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              />
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select or type a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories?.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+              {category === 'custom' && (
+                <Input
+                  placeholder="Enter custom category"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  className="mt-2"
+                />
+              )}
             </div>
 
             <div>
@@ -263,14 +300,14 @@ const PasteIcon = () => {
                     <span className="text-sm font-medium">Name:</span>
                     <span className="text-sm">{iconName || 'Untitled'}</span>
                   </div>
-                  {category && (
+                  {(category && category !== 'custom') || (category === 'custom' && customCategory) ? (
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">Category:</span>
                       <Badge variant="secondary" className="text-xs">
-                        {category}
+                        {category === 'custom' ? customCategory : category}
                       </Badge>
                     </div>
-                  )}
+                  ) : null}
                   {keywords && (
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">Keywords:</span>
