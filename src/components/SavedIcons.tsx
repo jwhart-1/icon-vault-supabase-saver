@@ -194,21 +194,15 @@ const SavedIcons = () => {
   };
 
   const openEditDialog = (icon: SavedIcon) => {
-    console.log('Opening edit dialog for icon:', icon.name);
     setEditingIcon(icon);
     setEditFormData({
       name: icon.name,
-      category: icon.category === 'custom' ? 'custom' : (icon.category || ''),
+      category: icon.category === 'custom' ? 'custom' : (icon.category || 'none'),
       customCategory: icon.category === 'custom' ? icon.category : '',
       keywords: icon.keywords ? icon.keywords.join(', ') : '',
       description: icon.description || '',
       author: icon.author || '',
       license: icon.license || ''
-    });
-    console.log('Edit form data set:', {
-      name: icon.name,
-      category: icon.category,
-      editingIcon: !!icon
     });
   };
 
@@ -220,7 +214,9 @@ const SavedIcons = () => {
 
     const finalCategory = editFormData.category === 'custom' 
       ? editFormData.customCategory.trim() 
-      : editFormData.category.trim();
+      : editFormData.category === 'none' 
+        ? null 
+        : editFormData.category.trim();
 
     const keywordsArray = editFormData.keywords
       .split(',')
@@ -479,10 +475,6 @@ const SavedIcons = () => {
             <DialogTitle>Edit Icon</DialogTitle>
           </DialogHeader>
           
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded">
-            <p>Debug: Dialog is open, editingIcon: {editingIcon ? editingIcon.name : 'null'}</p>
-          </div>
-          
           {editingIcon && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Icon Preview */}
@@ -524,7 +516,7 @@ const SavedIcons = () => {
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No category</SelectItem>
+                      <SelectItem value="none">No category</SelectItem>
                       {categories?.map((cat) => (
                         <SelectItem key={cat} value={cat}>
                           {cat}
