@@ -27,6 +27,7 @@ const SavedIcons = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedIcons, setSelectedIcons] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
   // Fetch saved icons
@@ -92,6 +93,50 @@ const SavedIcons = () => {
       toast.error('Failed to delete icon');
     },
   });
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (iconIds: string[]) => {
+      const { error } = await supabase
+        .from('icons')
+        .delete()
+        .in('id', iconIds);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['saved-icons'] });
+      setSelectedIcons(new Set());
+      toast.success('Selected icons deleted from repository');
+    },
+    onError: (error) => {
+      console.error('Bulk delete error:', error);
+      toast.error('Failed to delete selected icons');
+    },
+  });
+
+  const handleIconClick = (iconId: string, event: React.MouseEvent) => {
+    if (event.shiftKey) {
+      event.preventDefault();
+      const newSelected = new Set(selectedIcons);
+      if (newSelected.has(iconId)) {
+        newSelected.delete(iconId);
+      } else {
+        newSelected.add(iconId);
+      }
+      setSelectedIcons(newSelected);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIcons.size > 0) {
+      bulkDeleteMutation.mutate(Array.from(selectedIcons));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedIcons(new Set());
+  };
 
   const copyIcon = async (icon: SavedIcon) => {
     try {
@@ -180,10 +225,34 @@ const SavedIcons = () => {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="flex gap-4 text-sm text-gray-600">
-        <span>{savedIcons?.length || 0} icons saved</span>
-        {selectedCategory !== 'all' && <span>• Filtered by {selectedCategory}</span>}
+      {/* Stats and Bulk Actions */}
+      <div className="flex justify-between items-center">
+        <div className="flex gap-4 text-sm text-gray-600">
+          <span>{savedIcons?.length || 0} icons saved</span>
+          {selectedCategory !== 'all' && <span>• Filtered by {selectedCategory}</span>}
+          {selectedIcons.size > 0 && <span>• {selectedIcons.size} selected</span>}
+        </div>
+        
+        {selectedIcons.size > 0 && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearSelection}
+            >
+              Clear Selection
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteMutation.isPending}
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Delete Selected ({selectedIcons.size})
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Icons Grid/List */}
@@ -202,7 +271,10 @@ const SavedIcons = () => {
           {savedIcons.map((icon) => (
             <Card 
               key={icon.id}
-              className="group cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-purple-100"
+              className={`group cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-purple-100 ${
+                selectedIcons.has(icon.id) ? 'ring-2 ring-purple-500 bg-purple-50' : ''
+              }`}
+              onClick={(e) => handleIconClick(icon.id, e)}
             >
               <CardContent className={`p-3 ${viewMode === 'list' ? 'flex items-center gap-4' : 'text-center'}`}>
                 <div className={`${viewMode === 'list' ? 'flex-shrink-0' : 'mb-2'} flex justify-center`}>
@@ -234,7 +306,10 @@ const SavedIcons = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => copyIcon(icon)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyIcon(icon);
+                    }}
                     className="h-8 w-8 p-0"
                   >
                     <Copy className="w-3 h-3" />
@@ -242,7 +317,10 @@ const SavedIcons = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => downloadIcon(icon)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadIcon(icon);
+                    }}
                     className="h-8 w-8 p-0"
                   >
                     <Download className="w-3 h-3" />
@@ -250,7 +328,10 @@ const SavedIcons = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => deleteIconMutation.mutate(icon.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteIconMutation.mutate(icon.id);
+                    }}
                     className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
                   >
                     <Trash2 className="w-3 h-3" />
