@@ -28,6 +28,7 @@ const SavedIcons = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedIcons, setSelectedIcons] = useState<Set<string>>(new Set());
+  const [lastClickedIcon, setLastClickedIcon] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch saved icons
@@ -116,8 +117,25 @@ const SavedIcons = () => {
   });
 
   const handleIconClick = (iconId: string, event: React.MouseEvent) => {
-    if (event.shiftKey) {
-      event.preventDefault();
+    event.preventDefault();
+    
+    if (event.shiftKey && lastClickedIcon && savedIcons) {
+      // Range selection: select all icons between lastClickedIcon and current
+      const lastIndex = savedIcons.findIndex(icon => icon.id === lastClickedIcon);
+      const currentIndex = savedIcons.findIndex(icon => icon.id === iconId);
+      
+      if (lastIndex !== -1 && currentIndex !== -1) {
+        const startIndex = Math.min(lastIndex, currentIndex);
+        const endIndex = Math.max(lastIndex, currentIndex);
+        
+        const newSelected = new Set(selectedIcons);
+        for (let i = startIndex; i <= endIndex; i++) {
+          newSelected.add(savedIcons[i].id);
+        }
+        setSelectedIcons(newSelected);
+      }
+    } else {
+      // Regular click: toggle selection and set as last clicked
       const newSelected = new Set(selectedIcons);
       if (newSelected.has(iconId)) {
         newSelected.delete(iconId);
@@ -125,6 +143,7 @@ const SavedIcons = () => {
         newSelected.add(iconId);
       }
       setSelectedIcons(newSelected);
+      setLastClickedIcon(iconId);
     }
   };
 
